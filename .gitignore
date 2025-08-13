@@ -31,3 +31,14 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Ignore H2 database files
+*.db
+*.trace.db
+
+# Ignore WAR/JAR files
+*.war
+*.jar
+
+# Ignore logs
+*.log
