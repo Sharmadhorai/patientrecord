@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient & Doctor Management</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f6f9; padding: 20px; }
+        h1 { text-align: center; color: #007bff; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
+        table, th, td { border: 1px solid #ddd; }
+        th { background: #007bff; color: white; padding: 10px; }
+        td { padding: 10px; text-align: center; }
+        input, select, button { padding: 8px; margin: 5px; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .form-container { background: white; padding: 15px; border-radius: 8px; margin-top: 20px; }
+        .hidden { display: none; }
+        .btn-toggle { margin: 10px; padding: 10px; background: #28a745; color: white; border: none; cursor: pointer; }
+        .btn-toggle:hover { background: #218838; }
+    </style>
+</head>
+<body>
+
+<h1>Patient & Doctor Management</h1>
+
+<!-- Patient Form -->
+<div class="form-container">
+    <h3 id="formTitle">Add New Patient</h3>
+    <input type="hidden" id="patientId">
+    <input type="text" id="name" placeholder="Name">
+    <input type="number" id="age" placeholder="Age">
+    <input type="text" id="contact" placeholder="Contact">
+
+    <select id="doctor">
+        <option value="" disabled selected>Doctors</option>
+    </select>
+    <button type="button" onclick="showDoctorForm()">Add</button>
+
+    <!-- Doctor Form -->
+    <div id="doctorForm" class="hidden">
+        <h4 id="doctorFormTitle">Add New Doctor</h4>
+        <input type="hidden" id="doctorId">
+        <input type="text" id="doctorName" placeholder="Doctor Name">
+        <input type="text" id="doctorSpecialist" placeholder="Specialist">
+        <input type="number" id="doctorSuccessRate" placeholder="Success Rate (%)" min="0" max="100">
+        <button type="button" onclick="saveOrUpdateDoctor()">Save</button>
+        <button type="button" onclick="hideDoctorForm()">Cancel</button>
+    </div>
+
+    <br>
+    <button onclick="savePatient()">Save Patient</button>
+
+    <!-- Toggle Buttons Below Save Patient -->
+    <div>
+        <button class="btn-toggle" onclick="toggleTable('patientTableContainer')">Show Patient Details</button>
+        <button class="btn-toggle" onclick="toggleTable('doctorTableContainer')">Show Doctor Details</button>
+    </div>
+</div>
+
+<!-- Patient Table -->
+<div id="patientTableContainer" class="hidden">
+    <h2>Patients</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Age</th>
+                <th>Contact</th>
+                <th>Doctor</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="patientTable"></tbody>
+    </table>
+</div>
+
+<!-- Doctor Table -->
+<div id="doctorTableContainer" class="hidden">
+    <h2>Doctors</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Specialist</th>
+                <th>Success Rate (%)</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="doctorTable"></tbody>
+    </table>
+</div>
+
+<script>
+    const API_PATIENT = "http://localhost:8080/patient";
+    const API_DOCTOR = "http://localhost:8080/doctor";
+    let editingPatientId = null;
+    let editingDoctorId = null;
+
+    window.onload = () => {
+        fetchPatients();
+        fetchDoctors();
+    };
+
+    // Toggle Table Visibility
+    function toggleTable(tableId) {
+        document.getElementById("patientTableContainer").classList.add("hidden");
+        document.getElementById("doctorTableContainer").classList.add("hidden");
+        document.getElementById(tableId).classList.remove("hidden");
+    }
+
+    // ----------------- Patients -----------------
+    function fetchPatients() {
+        fetch(API_PATIENT)
+            .then(res => res.json())
+            .then(data => {
+                const table = document.getElementById("patientTable");
+                table.innerHTML = "";
+                data.forEach(p => {
+                    table.innerHTML += `
+                        <tr>
+                            <td>${p.name}</td>
+                            <td>${p.age}</td>
+                            <td>${p.contact}</td>
+                            <td>${p.doctors ? p.doctors.name : '-'}</td>
+                            <td>
+                                <button onclick="editPatient(${p.id}, '${p.name}', ${p.age}, '${p.contact}', ${p.doctors ? p.doctors.id : null})">Edit</button>
+                                <button onclick="deletePatient(${p.id})">Delete</button>
+                            </td>
+                        </tr>`;
+                });
+            });
+    }
+
+    function savePatient() {
+        const name = document.getElementById("name").value;
+        const age = document.getElementById("age").value;
+        const contact = document.getElementById("contact").value;
+        const doctorId = document.getElementById("doctor").value;
+
+        if (!doctorId) return alert("Please select a doctor");
+
+        const patient = { name, age: parseInt(age), contact, doctors: { id: parseInt(doctorId) } };
+
+        if (editingPatientId) {
+            fetch(`${API_PATIENT}/${editingPatientId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(patient)
+            }).then(() => {
+                editingPatientId = null;
+                document.getElementById("formTitle").innerText = "Add New Patient";
+                resetPatientForm();
+                fetchPatients();
+            });
+        } else {
+            fetch(API_PATIENT, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(patient)
+            }).then(() => {
+                resetPatientForm();
+                fetchPatients();
+            });
+        }
+    }
+
+    function editPatient(id, name, age, contact, doctorId) {
+        document.getElementById("formTitle").innerText = "Edit Patient";
+        document.getElementById("name").value = name;
+        document.getElementById("age").value = age;
+        document.getElementById("contact").value = contact;
+        document.getElementById("doctor").value = doctorId;
+        editingPatientId = id;
+    }
+
+    function deletePatient(id) {
+        fetch(`${API_PATIENT}/${id}`, { method: "DELETE" })
+            .then(() => fetchPatients());
+    }
+
+    function resetPatientForm() {
+        document.getElementById("name").value = "";
+        document.getElementById("age").value = "";
+        document.getElementById("contact").value = "";
+        document.getElementById("doctor").value = "";
+    }
+
+    // ----------------- Doctors -----------------
+    function fetchDoctors(selectedId = null) {
+        fetch(API_DOCTOR)
+            .then(res => res.json())
+            .then(data => {
+                const doctorSelect = document.getElementById("doctor");
+                const table = document.getElementById("doctorTable");
+                doctorSelect.innerHTML = `<option value="" disabled ${!selectedId ? 'selected' : ''}>Doctors</option>`;
+                table.innerHTML = "";
+
+                data.forEach(d => {
+                    doctorSelect.innerHTML += `<option value="${d.id}" ${selectedId == d.id ? 'selected' : ''}>${d.name} (${d.specialist})</option>`;
+                    table.innerHTML += `
+                        <tr>
+                            <td>${d.name}</td>
+                            <td>${d.specialist}</td>
+                            <td>${d.successrate}</td>
+                            <td>
+                                <button onclick="editDoctor(${d.id}, '${d.name}', '${d.specialist}', ${d.successrate})">Edit</button>
+                                <button onclick="deleteDoctor(${d.id})">Delete</button>
+                            </td>
+                        </tr>`;
+                });
+            });
+    }
+
+    function showDoctorForm() {
+        document.getElementById("doctorFormTitle").innerText = "Add New Doctor";
+        editingDoctorId = null;
+        document.getElementById("doctorForm").classList.remove("hidden");
+    }
+
+    function hideDoctorForm() {
+        document.getElementById("doctorForm").classList.add("hidden");
+    }
+
+    function saveOrUpdateDoctor() {
+        const doctor = {
+            name: document.getElementById("doctorName").value,
+            specialist: document.getElementById("doctorSpecialist").value,
+            successrate: parseInt(document.getElementById("doctorSuccessRate").value)
+        };
+
+        if (editingDoctorId) {
+            fetch(`${API_DOCTOR}/${editingDoctorId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(doctor)
+            }).then(() => {
+                hideDoctorForm();
+                fetchDoctors(editingDoctorId);
+            });
+        } else {
+            fetch(API_DOCTOR, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(doctor)
+            }).then(() => {
+                hideDoctorForm();
+                fetchDoctors();
+            });
+        }
+    }
+
+    function editDoctor(id, name, specialist, successrate) {
+        document.getElementById("doctorFormTitle").innerText = "Edit Doctor";
+        document.getElementById("doctorName").value = name;
+        document.getElementById("doctorSpecialist").value = specialist;
+        document.getElementById("doctorSuccessRate").value = successrate;
+        editingDoctorId = id;
+        document.getElementById("doctorForm").classList.remove("hidden");
+    }
+
+    function deleteDoctor(id) {
+        fetch(`${API_DOCTOR}/${id}`, { method: "DELETE" })
+            .then(() => fetchDoctors());
+    }
+</script>
+
+</body>
+</html>
